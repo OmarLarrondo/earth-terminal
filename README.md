@@ -1,31 +1,31 @@
 # Earth Terminal
 
-Un planeta Tierra girando en vivo, renderizado con bloques de color de 24 bits en una
-pane dedicada de tmux, mientras sigues usando tu shell normal al lado.
+A live, rotating Earth rendered in 24-bit color inside a dedicated tmux pane while you
+keep using your normal shell right next to it.
 
-![Earth Terminal girando junto al shell en una pane de tmux](docs/screenshot.png)
+![Earth Terminal spinning next to a shell in a tmux pane](docs/screenshot.png)
 
-Sin dependencias de Python: solo la librería estándar. Solo necesitas `bash` y `tmux`.
+[![License: MIT](https://img.shields.io/github/license/OmarLarrondo/earth-terminal?color=blue)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![tmux](https://img.shields.io/badge/tmux-required-1BB91F?logo=tmux&logoColor=white)](https://github.com/tmux/tmux)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey)]()
+[![Stars](https://img.shields.io/github/stars/OmarLarrondo/earth-terminal?style=social)](https://github.com/OmarLarrondo/earth-terminal/stargazers)
 
-## Características
+No Python dependencies beyond the standard library. All you need is `bash` and `tmux`.
 
-- Globo terráqueo animado a 10 FPS dibujado con caracteres `▀` y color RGB de 24 bits.
-- Continentes definidos con polígonos de longitud/latitud, sombreado con terminador,
-  casquetes polares, bandas de nubes y estrellas de fondo.
-- La animación vive en su propia pane de tmux, así que **nunca borra ni interfiere con
-  la línea de comandos** que estás escribiendo.
-- Se adapta al tamaño de la ventana y se degrada con elegancia: si la terminal es
-  pequeña o falta `tmux`, arranca un shell normal sin romper nada.
-- Limpia la sesión de tmux al salir y restaura el terminal correctamente.
+## Features
 
-## Requisitos
+- A rotating globe animated at 10 FPS using half-block characters (`▀`) and 24-bit RGB
+  color.
+- Continents drawn from longitude/latitude polygons, with a soft terminator, polar ice,
+  cloud bands and a starfield background.
+- The animation lives in its own tmux pane, so it **never redraws over or interferes
+  with the command line** you are typing.
+- Adapts to your window size and degrades gracefully: on a small terminal, or without
+  `tmux`, it falls back to a plain shell instead of breaking.
+- Cleans up its tmux session on exit and restores the terminal state properly.
 
-- Linux o macOS
-- `bash`
-- `tmux`
-- `python3` (3.10 o superior) para `spinning-earth`
-
-## Instalación
+## Quick start
 
 ```bash
 git clone https://github.com/OmarLarrondo/earth-terminal.git
@@ -33,10 +33,12 @@ cd earth-terminal
 ./install.sh
 ```
 
-El instalador copia los dos scripts a `~/bin` y añade el arranque automático a tu
-`~/.bashrc` (solo si no estaba ya). Asegúrate de que `~/bin` esté en tu `PATH`.
+Then open a new terminal (or run `exec bash`).
 
-Instalación manual:
+The installer copies both scripts to `~/bin` and appends the auto-start block to your
+`~/.bashrc` only if it is not there already. Make sure `~/bin` is on your `PATH`.
+
+### Manual installation
 
 ```bash
 mkdir -p ~/bin
@@ -44,7 +46,7 @@ cp earth-terminal spinning-earth ~/bin/
 chmod +x ~/bin/earth-terminal ~/bin/spinning-earth
 ```
 
-Y añade esto al final de tu `~/.bashrc`:
+Add this to the end of your `~/.bashrc`:
 
 ```bash
 # Start the rotating Earth in a dedicated tmux pane for interactive terminals.
@@ -59,47 +61,56 @@ if [[ $- == *i* ]] \
 fi
 ```
 
-## Uso
+## Usage
 
-Abre una terminal nueva (o ejecuta `exec bash`) y el globo aparecerá a la derecha.
+Open a new terminal and the globe appears on the right.
 
-| Variable | Por defecto | Descripción |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `EARTH_PANE_WIDTH` | `42` | Ancho en columnas de la pane del globo. |
-| `NO_EARTH_TERMINAL` | _(vacío)_ | Ponlo a `1` para arrancar sin el globo. |
-
-Ejemplos:
+| `EARTH_PANE_WIDTH` | `42` | Width in columns of the globe pane. |
+| `NO_EARTH_TERMINAL` | _(empty)_ | Set to `1` to start without the globe. |
 
 ```bash
-# Globo más estrecho
+# A narrower globe
 EARTH_PANE_WIDTH=34 exec bash
 
-# Arrancar sin el globo esta vez
+# Start without the globe this time
 NO_EARTH_TERMINAL=1 exec bash
 ```
 
-Para ver solo la animación a pantalla completa:
+To watch the animation on its own, full screen:
 
 ```bash
 ./spinning-earth
 ```
 
-## Cómo funciona
+## How it works
 
-- `earth-terminal`: script Bash que comprueba el tamaño de la terminal, crea una sesión
-  de tmux, abre el shell a la izquierda y `spinning-earth` a la derecha. Un `trap` y un
-  hook de tmux cierran la sesión cuando sales.
-- `spinning-earth`: renderizador en Python que proyecta una esfera, consulta si cada
-  punto es tierra u océano, aplica iluminación y escribe el frame con secuencias ANSI.
+- `earth-terminal` is a Bash wrapper. It checks the terminal size, starts a detached
+  tmux session, puts your shell on the left and `spinning-earth` on the right. A `trap`
+  and a tmux hook tear the session down when you exit.
+- `spinning-earth` is a Python renderer. It projects a sphere, tests each point against
+  the continent polygons, applies lighting and writes each frame with ANSI escape
+  sequences.
 
-## Desinstalación
+## Windows
+
+The wrapper depends on `tmux`, which has no native Windows build. Use one of these:
+
+- **WSL2** (recommended): works exactly like on Linux, and Windows Terminal renders the
+  24-bit colors correctly.
+- **Globe only:** `spinning-earth` is plain Python, so `python spinning-earth` runs
+  natively in Windows Terminal (no split pane or side-by-side shell).
+- **MSYS2** ships tmux, but it is more work than simply using WSL.
+
+## Uninstall
 
 ```bash
 rm ~/bin/earth-terminal ~/bin/spinning-earth
 ```
 
-Y elimina el bloque marcado con `# Start the rotating Earth` de tu `~/.bashrc`.
+Then remove the block starting with `# Start the rotating Earth` from your `~/.bashrc`.
 
-## Licencia
+## License
 
-MIT. Ver [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

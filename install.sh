@@ -8,17 +8,17 @@ marker="# Start the rotating Earth"
 
 for cmd in python3 tmux; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        printf 'Advertencia: no se encontro %s. Instalalo antes de usar el globo.\n' "$cmd" >&2
+        printf 'Warning: %s was not found. Install it before using the globe.\n' "$cmd" >&2
     fi
 done
 
 mkdir -p "$bin_dir"
 install -m 755 "$repo_dir/earth-terminal" "$bin_dir/earth-terminal"
 install -m 755 "$repo_dir/spinning-earth" "$bin_dir/spinning-earth"
-printf 'Scripts instalados en %s\n' "$bin_dir"
+printf 'Scripts installed in %s\n' "$bin_dir"
 
 if [ -f "$bashrc" ] && grep -qF "$marker" "$bashrc"; then
-    printf 'El arranque automatico ya estaba en %s\n' "$bashrc"
+    printf 'Auto-start is already configured in %s\n' "$bashrc"
 else
     {
         printf '\n%s in a dedicated tmux pane for interactive terminals.\n' "$marker"
@@ -32,12 +32,12 @@ else
         printf '    exec earth-terminal\n'
         printf 'fi\n'
     } >> "$bashrc"
-    printf 'Arranque automatico anadido a %s\n' "$bashrc"
+    printf 'Auto-start added to %s\n' "$bashrc"
 fi
 
 case ":$PATH:" in
     *":$bin_dir:"*) ;;
-    *) printf 'Aviso: %s no esta en tu PATH. Anadelo a tu ~/.bashrc.\n' "$bin_dir" ;;
+    *) printf 'Note: %s is not on your PATH. Add it to your ~/.bashrc.\n' "$bin_dir" ;;
 esac
 
-printf 'Listo. Abre una terminal nueva o ejecuta: exec bash\n'
+printf 'Done. Open a new terminal or run: exec bash\n'
