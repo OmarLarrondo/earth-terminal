@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+earth_cmd="$HOME/bin/spinning-earth"
+shell_cmd="${SHELL:-/bin/bash}"
+
+if ! command -v tmux >/dev/null 2>&1 || [ ! -x "$earth_cmd" ]; then
+    exec env NO_EARTH_TERMINAL=1 "$shell_cmd" -l
+fi
+
+columns="$(tput cols 2>/dev/null || printf '0')"
+lines="$(tput lines 2>/dev/null || printf '0')"
+
+# Preserve a useful writing area. Small windows get a normal shell instead of a
+# cramped or failing split; opening a larger terminal enables the globe again.
+if [ "$columns" -lt 92 ] || [ "$lines" -lt 18 ]; then
+    exec env NO_EARTH_TERMINAL=1 "$shell_cmd" -l
+fi
+
+requested_width="${EARTH_PANE_WIDTH:-42}"
+max_width=$((columns - 62))
+if [ "$requested_width" -gt "$max_width" ]; then
+    requested_width="$max_width"
+fi
+if [ "$requested_width" -lt 30 ]; then
+    requested_width=30
+fi
+
+session="earth-${USER:-user}-$$"
+cleanup() {
+    tmux kill-session -t "$session" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+# The globe owns the right pane and its cursor; readline owns the left pane.
+# Consequently, animation redraws can never erase typed commands.
+tmux new-session -d -s "$session" -n shell "$shell_cmd" -l
+main_pane="$(tmux display-message -p -t "$session:0.0" '#{pane_id}')"
+tmux split-window -d -h -l "$requested_width" -t "$session:0" "$earth_cmd"
+tmux select-pane -t "$session:0.0"
+tmux set-option -t "$session" status off
+tmux set-option -t "$session" pane-border-style 'fg=colour24'
+tmux set-option -t "$session" pane-active-border-style 'fg=colour39'
+# When the writing pane exits, end the whole layout instead of leaving an
+# orphaned animation attached to the terminal.
+tmux set-hook -t "$session" pane-exited \
+    "if-shell -F '#{==:#{hook_pane},$main_pane}' 'kill-session -t $session' ''"
+tmux attach-session -t "$session"

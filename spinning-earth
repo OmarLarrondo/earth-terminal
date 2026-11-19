@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""A small, dependency-free animated Earth for a dedicated terminal pane."""
+
+from __future__ import annotations
+
+import math
+import os
+import shutil
+import signal
+import sys
+import time
+
+
+FPS = 10
+ESC = "\033["
+
+# Longitude/latitude outlines. They are intentionally lightweight, but sampling
+# them on the sphere produces a much more recognisable map than ellipse blobs.
+CONTINENTS = (
+    # North America
+    ((-168, 70), (-145, 71), (-128, 55), (-124, 48), (-130, 40),
+     (-117, 32), (-105, 24), (-97, 18), (-83, 9), (-77, 18),
+     (-81, 26), (-66, 45), (-55, 51), (-61, 61), (-84, 72),
+     (-110, 72), (-140, 60)),
+    # South America
+    ((-81, 12), (-67, 10), (-50, 3), (-35, -8), (-39, -23),
+     (-53, -34), (-66, -55), (-75, -42), (-80, -18), (-77, 1)),
+    # Greenland
+    ((-73, 59), (-48, 58), (-21, 73), (-35, 83), (-60, 82)),
+    # Africa
+    ((-17, 36), (10, 37), (35, 31), (51, 12), (42, -12),
+     (31, -35), (17, -35), (8, -18), (-7, 5), (-17, 15)),
+    # Europe and Asia
+    ((-10, 36), (1, 44), (-9, 58), (10, 72), (38, 70), (60, 76),
+     (105, 77), (145, 70), (180, 66), (168, 53), (142, 48),
+     (132, 34), (120, 22), (104, 10), (94, 22), (79, 8),
+     (67, 25), (48, 29), (39, 40), (24, 35), (13, 42)),
+    # Arabia and India
+    ((35, 31), (58, 27), (56, 15), (44, 12)),
+    ((67, 25), (89, 27), (82, 7), (76, 8)),
+    # Southeast Asia
+    ((95, 22), (121, 19), (130, 4), (111, -8), (101, 5)),
+    # Japan
+    ((129, 31), (145, 46), (141, 31)),
+    # Australia
+    ((112, -11), (131, -10), (153, -25), (145, -40), (119, -35)),
+    # Madagascar
+    ((46, -13), (51, -25), (46, -27), (43, -17)),
+)
+
+
+def point_in_polygon(lon: float, lat: float, polygon: tuple[tuple[int, int], ...]) -> bool:
+    inside = False
+    previous = polygon[-1]
+    for current in polygon:
+        x1, y1 = previous
+        x2, y2 = current
+        if (y1 > lat) != (y2 > lat):
+            crossing = (x2 - x1) * (lat - y1) / (y2 - y1) + x1
+            if lon < crossing:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def is_land(lat: float, lon: float) -> bool:
+    lon = (lon + 180.0) % 360.0 - 180.0
+    if lat < -69:
+        return True
+    return any(point_in_polygon(lon, lat, polygon) for polygon in CONTINENTS)
+
+
+def mix(a: tuple[int, int, int], b: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
+    amount = max(0.0, min(1.0, amount))
+    return tuple(round(x + (y - x) * amount) for x, y in zip(a, b))
+
+
+def pixel(nx: float, ny: float, angle: float) -> tuple[int, int, int]:
+    rr = nx * nx + ny * ny
+    background = (2, 8, 20)
+    if rr > 1.0:
+        # Sparse, stable stars outside the globe.
+        star = math.sin((nx + 2.7) * 91.7 + (ny + 1.9) * 157.3)
+        return (75, 99, 128) if star > 0.985 else background
+
+    z = math.sqrt(max(0.0, 1.0 - rr))
+    lat = math.degrees(math.asin(-ny))
+    lon = math.degrees(math.atan2(nx, z)) + angle
+    lon = (lon + 180.0) % 360.0 - 180.0
+
+    # A soft light from the upper-left gives the planet depth and a terminator.
+    light = max(0.0, nx * -0.38 + ny * -0.24 + z * 0.89)
+    light = 0.16 + 0.84 * light
+    rim = max(0.0, min(1.0, z * 3.5))
+
+    if abs(lat) > 72:
+        base = (198, 226, 232)
+    elif is_land(lat, lon):
+        # Latitude and a tiny deterministic variation add natural colour.
+        tropical = max(0.0, 1.0 - abs(lat) / 55.0)
+        base = mix((133, 111, 47), (42, 151, 75), tropical)
+        texture = math.sin(lon * 0.31 + lat * 0.47) * 0.08
+        base = mix(base, (181, 155, 82), max(0.0, texture))
+    else:
+        base = mix((4, 38, 103), (8, 126, 180), max(0.0, z * 0.85))
+
+    shaded = tuple(round(channel * light * rim) for channel in base)
+
+    # Fine, translucent-looking cloud bands.
+    cloud = math.sin(math.radians(lon * 3.2 + lat * 7.1 + angle * 0.35))
+    if cloud > 0.91 and abs(lat) < 67:
+        shaded = mix(shaded, (205, 226, 232), (cloud - 0.91) * 3.8)
+    return shaded
+
+
+def color_fg(rgb: tuple[int, int, int]) -> str:
+    return f"{ESC}38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
+
+
+def color_bg(rgb: tuple[int, int, int]) -> str:
+    return f"{ESC}48;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
+
+
+def make_frame(angle: float) -> str:
+    columns, lines = shutil.get_terminal_size((42, 24))
+    columns = max(20, min(columns, 56))
+    drawable_lines = max(8, min(lines - 2, 27))
+    pixel_height = drawable_lines * 2
+    radius = min((columns - 2) / 2.0, (pixel_height - 3) / 2.0)
+    center_x = (columns - 1) / 2.0
+    center_y = (pixel_height - 1) / 2.0
+    background = (2, 8, 20)
+
+    output = [f"{ESC}H"]
+    for row in range(drawable_lines):
+        upper_y = (row * 2 + 0.25 - center_y) / radius
+        lower_y = (row * 2 + 1.25 - center_y) / radius
+        last_fg = last_bg = None
+        for column in range(columns):
+            nx = (column + 0.5 - center_x) / radius
+            upper = pixel(nx, upper_y, angle)
+            lower = pixel(nx, lower_y, angle)
+            if upper != last_fg:
+                output.append(color_fg(upper))
+                last_fg = upper
+            if lower != last_bg:
+                output.append(color_bg(lower))
+                last_bg = lower
+            output.append("▀")
+        output.append(f"{ESC}0m{ESC}K\n")
+
+    title = "  EARTH  •  LIVE"
+    padding = max(0, (columns - len(title)) // 2)
+    output.append(color_bg(background) + color_fg((94, 207, 255)))
+    output.append(" " * padding + title + f"{ESC}0m{ESC}K")
+    return "".join(output)
+
+
+def restore_terminal(*_args: object) -> None:
+    sys.stdout.write(f"{ESC}0m{ESC}?25h{ESC}?1049l")
+    sys.stdout.flush()
+    raise SystemExit(0)
+
+
+def main() -> None:
+    if not sys.stdout.isatty():
+        print("spinning-earth needs an interactive terminal", file=sys.stderr)
+        raise SystemExit(1)
+
+    signal.signal(signal.SIGINT, restore_terminal)
+    signal.signal(signal.SIGTERM, restore_terminal)
+    sys.stdout.write(f"{ESC}?1049h{ESC}?25l{ESC}2J")
+    sys.stdout.flush()
+
+    angle = 0.0
+    last_size: os.terminal_size | None = None
+    try:
+        while True:
+            size = os.get_terminal_size(sys.stdout.fileno())
+            if size != last_size:
+                sys.stdout.write(f"{ESC}2J")
+                last_size = size
+            sys.stdout.write(make_frame(angle))
+            sys.stdout.flush()
+            angle = (angle + 2.2) % 360.0
+            time.sleep(1.0 / FPS)
+    finally:
+        sys.stdout.write(f"{ESC}0m{ESC}?25h{ESC}?1049l")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
