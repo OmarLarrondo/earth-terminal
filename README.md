@@ -3,20 +3,7 @@
 Un planeta Tierra girando en vivo, renderizado con bloques de color de 24 bits en una
 pane dedicada de tmux, mientras sigues usando tu shell normal al lado.
 
-```
-┌──────────────────────────────┬───────────────────────┐
-│ omar@infiniteaux:~$           │                       │
-│                               │          ▄▄▄▄         │
-│                               │      ▄▄████████▄▄     │
-│                               │    ▄██████████████▄   │
-│                               │   ██████████████████  │
-│                               │   ██████████████████  │
-│                               │    ▀██████████████▀   │
-│                               │      ▀▀████████▀▀     │
-│                               │                       │
-│                               │      EARTH • LIVE     │
-└──────────────────────────────┴───────────────────────┘
-```
+![Earth Terminal girando junto al shell en una pane de tmux](docs/screenshot.png)
 
 Sin dependencias de Python: solo la librería estándar. Solo necesitas `bash` y `tmux`.
 
